@@ -1,7 +1,7 @@
 import { assertApiSupport } from '@renderer/store/utils'
 import musicSdk from '@renderer/utils/musicSdk'
 import { QUALITYS } from '@common/constants'
-import { isLosslessOrAbove } from '@common/utils/tools'
+import { isLosslessOrAbove, isMasterQuality } from '@common/utils/tools'
 import {
   // getOtherSource as getOtherSourceFromStore,
   // saveOtherSource as saveOtherSourceFromStore,
@@ -252,8 +252,6 @@ const markQualityUnsupported = (musicId: string, quality: LX.Quality) => {
   set.add(quality)
 }
 
-const isMasterQuality = (quality: LX.Quality) => quality == 'master' || quality == 'atmos'
-
 /**
  * 计算实际要尝试获取的音质列表（按音质从高到低），获取失败时依次降级
  *
@@ -289,6 +287,19 @@ export const getTryQualitys = (highQuality: LX.Quality, musicInfo: LX.Music.Musi
   // 所选音质高于歌曲实际拥有的音质（例如选了 Master 但只有 HQ），退回歌曲实际的最高音质
   const actualQualitys = QUALITYS.filter(q => qualitys[q])
   return actualQualitys.length ? actualQualitys : ['128k']
+}
+
+/**
+ * 计算本次要尝试的音质列表
+ *
+ * 显式指定音质时（下载、换源）通常只取该音质；但 master / atmos 是补齐出来的映射音质，
+ * 接口未必支持，所以按降级列表处理，避免下载直接失败
+ * @param quality 显式指定的音质，不传则用设置里的「优先播放的音质」
+ * @param musicInfo
+ */
+export const getTargetQualitys = (quality: LX.Quality | undefined, musicInfo: LX.Music.MusicInfoOnline): LX.Quality[] => {
+  if (quality && !isMasterQuality(quality)) return [quality]
+  return getTryQualitys(quality ?? appSetting['player.playQuality'], musicInfo)
 }
 
 /**
@@ -348,7 +359,7 @@ export const getOnlineOtherSourceMusicUrl = async({ musicInfos, quality, onToggl
     if (retryedSource.includes(musicInfo.source)) continue
     retryedSource.push(musicInfo.source)
     if (!assertApiSupport(musicInfo.source)) continue
-    itemQualitys = quality ? [quality] : getTryQualitys(appSetting['player.playQuality'], musicInfo)
+    itemQualitys = getTargetQualitys(quality, musicInfo)
     if (!musicInfo.meta._qualitys || !itemQualitys.length) continue
 
     console.log('try toggle to: ', musicInfo.source, musicInfo.name, musicInfo.singer, musicInfo.interval)
@@ -393,7 +404,7 @@ export const handleGetOnlineMusicUrl = async({ musicInfo, quality, onToggleSourc
 }> => {
   if (!await window.lx.apiInitPromise[0]) throw new Error('source init failed')
   // console.log(musicInfo.source)
-  const tryQualitys = quality ? [quality] : getTryQualitys(appSetting['player.playQuality'], musicInfo)
+  const tryQualitys = getTargetQualitys(quality, musicInfo)
 
   if (!isRefresh) {
     const cached = await getCachedMusicUrlByQualitys(musicInfo, tryQualitys)
