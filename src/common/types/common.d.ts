@@ -47,7 +47,8 @@ declare namespace LX {
 
   type OnlineSource = 'kw' | 'kg' | 'tx' | 'wy' | 'mg'
   type Source = OnlineSource | 'local'
-  type Quality = '128k' | '320k' | 'flac' | 'flac24bit' | '192k' | 'ape' | 'wav'
+  // 音质标识，master/atmos 为高于 SQ 的音质
+  type Quality = '128k' | '192k' | '320k' | 'flac' | 'flac24bit' | 'atmos' | 'master' | 'ape' | 'wav'
 
   type QualityList = Partial<Record<LX.Source, LX.Quality[]>>
 
