@@ -43,8 +43,8 @@ jobs:
   # ============================================================
   # Windows
   # ============================================================
-  Windows_build:
-    name: Windows Build
+  Windows:
+    name: Windows
     runs-on: windows-latest
     outputs:
       files: ${{ steps.list.outputs.files }}
@@ -82,39 +82,40 @@ jobs:
       - name: Generate file MD5
         run: |
           cd build
-          Get-FileHash *.exe,*.7z -Algorithm MD5 | Format-List
+          Get-FileHash *.exe,*.7z -Algorithm MD5 -ErrorAction SilentlyContinue | Format-List
 
       - name: Collect artifact list
         id: list
         shell: pwsh
         run: |
-          $files = Get-ChildItem build\* -File -Include *.exe,*.7z
-          $json = @($files | ForEach-Object { $_.Name }) | ConvertTo-Json -Compress
-          if ($files.Count -eq 0) { $json = "[]" }
-          echo "files=$json" >> $env:GITHUB_ENV
+          $files = @(Get-ChildItem build\* -File -Include *.exe,*.7z -ErrorAction SilentlyContinue)
+          if ($files.Count -gt 0) {
+            $json = @($files | ForEach-Object { $_.Name }) | ConvertTo-Json -Compress
+          } else {
+            $json = "[]"
+          }
+          Write-Host "Collected: $json"
           echo "files=$json" >> $env:GITHUB_OUTPUT
 
-      # 中间 artifact：把整个 build 目录传出来供上传 job 使用
-      - name: Upload raw build (staging)
+      - name: Upload staging
         if: steps.list.outputs.files != '[]'
         uses: actions/upload-artifact@v4
         with:
           name: windows-staging
           path: build/
-          if-no-files-found: warn
           retention-days: 1
 
   Windows_upload:
     name: Windows Upload (${{ matrix.file }})
-    needs: Windows_build
-    if: needs.Windows_build.outputs.files != '[]'
+    needs: Windows
+    if: needs.Windows.outputs.files != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        file: ${{ fromJson(needs.Windows_build.outputs.files) }}
+        file: ${{ fromJson(needs.Windows.outputs.files) }}
     steps:
-      - name: Download staging artifact
+      - name: Download staging
         uses: actions/download-artifact@v4
         with:
           name: windows-staging
@@ -130,8 +131,8 @@ jobs:
   # ============================================================
   # Windows_7
   # ============================================================
-  Windows_7_build:
-    name: Windows_7 Build
+  Windows_7:
+    name: Windows_7
     runs-on: windows-latest
     outputs:
       files: ${{ steps.list.outputs.files }}
@@ -177,37 +178,40 @@ jobs:
       - name: Generate file MD5
         run: |
           cd build
-          Get-FileHash *.exe,*.7z -Algorithm MD5 | Format-List
+          Get-FileHash *.exe,*.7z -Algorithm MD5 -ErrorAction SilentlyContinue | Format-List
 
       - name: Collect artifact list
         id: list
         shell: pwsh
         run: |
-          $files = Get-ChildItem build\* -File -Include *.exe,*.7z
-          $json = @($files | ForEach-Object { $_.Name }) | ConvertTo-Json -Compress
-          if ($files.Count -eq 0) { $json = "[]" }
+          $files = @(Get-ChildItem build\* -File -Include *.exe,*.7z -ErrorAction SilentlyContinue)
+          if ($files.Count -gt 0) {
+            $json = @($files | ForEach-Object { $_.Name }) | ConvertTo-Json -Compress
+          } else {
+            $json = "[]"
+          }
+          Write-Host "Collected: $json"
           echo "files=$json" >> $env:GITHUB_OUTPUT
 
-      - name: Upload raw build (staging)
+      - name: Upload staging
         if: steps.list.outputs.files != '[]'
         uses: actions/upload-artifact@v4
         with:
           name: windows7-staging
           path: build/
-          if-no-files-found: warn
           retention-days: 1
 
   Windows_7_upload:
     name: Windows_7 Upload (${{ matrix.file }})
-    needs: Windows_7_build
-    if: needs.Windows_7_build.outputs.files != '[]'
+    needs: Windows_7
+    if: needs.Windows_7.outputs.files != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        file: ${{ fromJson(needs.Windows_7_build.outputs.files) }}
+        file: ${{ fromJson(needs.Windows_7.outputs.files) }}
     steps:
-      - name: Download staging artifact
+      - name: Download staging
         uses: actions/download-artifact@v4
         with:
           name: windows7-staging
@@ -223,8 +227,8 @@ jobs:
   # ============================================================
   # Mac
   # ============================================================
-  Mac_build:
-    name: Mac Build
+  Mac:
+    name: Mac
     runs-on: macos-latest
     outputs:
       files: ${{ steps.list.outputs.files }}
@@ -263,36 +267,49 @@ jobs:
       - name: Generate file MD5
         run: |
           cd build
-          md5 *.dmg
+          md5 *.dmg 2>/dev/null || true
 
       - name: Collect artifact list
         id: list
         shell: bash
         run: |
-          files=$(ls build/*.dmg 2>/dev/null | xargs -r -n1 basename | jq -R . | jq -sc .)
-          [ -z "$files" ] && files="[]"
-          echo "files=$files" >> "$GITHUB_OUTPUT"
+          shopt -s nullglob
+          names=()
+          for f in build/*.dmg; do
+            names+=("$(basename "$f")")
+          done
+          if [ ${#names[@]} -gt 0 ]; then
+            json="["
+            for n in "${names[@]}"; do
+              esc=$(printf '%s' "$n" | sed 's/\\/\\\\/g; s/"/\\"/g')
+              json="${json}\"${esc}\","
+            done
+            json="${json%,}]"
+          else
+            json="[]"
+          fi
+          echo "Collected: $json"
+          echo "files=$json" >> "$GITHUB_OUTPUT"
 
-      - name: Upload raw build (staging)
+      - name: Upload staging
         if: steps.list.outputs.files != '[]'
         uses: actions/upload-artifact@v4
         with:
           name: mac-staging
           path: build/
-          if-no-files-found: warn
           retention-days: 1
 
   Mac_upload:
     name: Mac Upload (${{ matrix.file }})
-    needs: Mac_build
-    if: needs.Mac_build.outputs.files != '[]'
+    needs: Mac
+    if: needs.Mac.outputs.files != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        file: ${{ fromJson(needs.Mac_build.outputs.files) }}
+        file: ${{ fromJson(needs.Mac.outputs.files) }}
     steps:
-      - name: Download staging artifact
+      - name: Download staging
         uses: actions/download-artifact@v4
         with:
           name: mac-staging
@@ -308,8 +325,8 @@ jobs:
   # ============================================================
   # Linux
   # ============================================================
-  Linux_build:
-    name: Linux Build
+  Linux:
+    name: Linux
     runs-on: ubuntu-latest
     outputs:
       files: ${{ steps.list.outputs.files }}
@@ -352,36 +369,49 @@ jobs:
       - name: Generate file MD5
         run: |
           cd build
-          md5sum *.deb *.rpm *.pacman *.AppImage
+          md5sum *.deb *.rpm *.pacman *.AppImage 2>/dev/null || true
 
       - name: Collect artifact list
         id: list
         shell: bash
         run: |
-          files=$(ls build/*.deb build/*.rpm build/*.pacman build/*.AppImage 2>/dev/null | xargs -r -n1 basename | jq -R . | jq -sc .)
-          [ -z "$files" ] && files="[]"
-          echo "files=$files" >> "$GITHUB_OUTPUT"
+          shopt -s nullglob
+          names=()
+          for f in build/*.deb build/*.rpm build/*.pacman build/*.AppImage; do
+            names+=("$(basename "$f")")
+          done
+          if [ ${#names[@]} -gt 0 ]; then
+            json="["
+            for n in "${names[@]}"; do
+              esc=$(printf '%s' "$n" | sed 's/\\/\\\\/g; s/"/\\"/g')
+              json="${json}\"${esc}\","
+            done
+            json="${json%,}]"
+          else
+            json="[]"
+          fi
+          echo "Collected: $json"
+          echo "files=$json" >> "$GITHUB_OUTPUT"
 
-      - name: Upload raw build (staging)
+      - name: Upload staging
         if: steps.list.outputs.files != '[]'
         uses: actions/upload-artifact@v4
         with:
           name: linux-staging
           path: build/
-          if-no-files-found: warn
           retention-days: 1
 
   Linux_upload:
     name: Linux Upload (${{ matrix.file }})
-    needs: Linux_build
-    if: needs.Linux_build.outputs.files != '[]'
+    needs: Linux
+    if: needs.Linux.outputs.files != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        file: ${{ fromJson(needs.Linux_build.outputs.files) }}
+        file: ${{ fromJson(needs.Linux.outputs.files) }}
     steps:
-      - name: Download staging artifact
+      - name: Download staging
         uses: actions/download-artifact@v4
         with:
           name: linux-staging
