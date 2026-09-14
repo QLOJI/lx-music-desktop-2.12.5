@@ -27,11 +27,11 @@ const events = {
 }
 const allSources = ['kw', 'kg', 'tx', 'wy', 'mg', 'local']
 const supportQualitys = {
-  kw: ['128k', '320k', 'flac', 'flac24bit'],
-  kg: ['128k', '320k', 'flac', 'flac24bit'],
-  tx: ['128k', '320k', 'flac', 'flac24bit'],
-  wy: ['128k', '320k', 'flac', 'flac24bit'],
-  mg: ['128k', '320k', 'flac', 'flac24bit'],
+  kw: ['128k', '320k', 'flac', 'flac24bit', 'atmos', 'master'],
+  kg: ['128k', '320k', 'flac', 'flac24bit', 'atmos', 'master'],
+  tx: ['128k', '320k', 'flac', 'flac24bit', 'atmos', 'master'],
+  wy: ['128k', '320k', 'flac', 'flac24bit', 'atmos', 'master'],
+  mg: ['128k', '320k', 'flac', 'flac24bit', 'atmos', 'master'],
   local: [],
 }
 const supportActions = {
