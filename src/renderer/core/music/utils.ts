@@ -266,7 +266,8 @@ export const getTryQualitys = (highQuality: LX.Quality, musicInfo: LX.Music.Musi
     return list.length ? list : ['128k']
   }
 
-  // SQ 及以上的歌曲一律按 Master 获取，HQ / 128K 的歌没有无损可映射，只能按实际音质
+  // SQ 及以上的歌曲一律按 Master 获取，HQ / 192K / 128K 的歌没有无损可映射，只能按实际音质
+  // isLosslessOrAbove 只认真实的 flac/flac24bit/ape/wav，因此被写入脏 master/atmos 的有损歌曲不会误走 Master
   const useMaster = isLosslessOrAbove(qualitys)
   const startQuality: LX.Quality = useMaster ? 'master' : highQuality
 
