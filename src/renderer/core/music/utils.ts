@@ -229,20 +229,26 @@ export const PLAY_QUALITYS: Array<{ value: LX.Quality, label: string }> = [
   { value: 'master', label: 'Master' },
 ]
 
-// 源不支持某音质时记录下来，避免后续每次播放都白打一次请求
-const unsupportedQualitys = new Map<LX.Source, Set<LX.Quality>>()
+// 某音质获取失败时按「歌曲」记录下来，避免同一首歌在刷新/换源重试时反复白打请求。
+// 绝不能按「源」记：一首歌取不到 master 不代表同源其他歌也取不到，
+// 按源记会让整个源在本次会话里再也不尝试 master，
+// 表现就是「设置里选了 Master，却只有第一首歌试过，之后都直接从 flac24bit 开始取」
+const unsupportedQualitys = new Map<string, Set<LX.Quality>>()
+const UNSUPPORTED_CACHE_MAX = 1000
 
 export const clearUnsupportedQualitysCache = () => {
   unsupportedQualitys.clear()
 }
 
-const isQualityUnsupported = (source: LX.Source, quality: LX.Quality) => {
-  return unsupportedQualitys.get(source)?.has(quality) ?? false
+const isQualityUnsupported = (musicId: string, quality: LX.Quality) => {
+  return unsupportedQualitys.get(musicId)?.has(quality) ?? false
 }
 
-const markQualityUnsupported = (source: LX.Source, quality: LX.Quality) => {
-  let set = unsupportedQualitys.get(source)
-  if (!set) unsupportedQualitys.set(source, set = new Set())
+const markQualityUnsupported = (musicId: string, quality: LX.Quality) => {
+  // 简单设个上限，避免长会话里无限增长
+  if (unsupportedQualitys.size >= UNSUPPORTED_CACHE_MAX) unsupportedQualitys.clear()
+  let set = unsupportedQualitys.get(musicId)
+  if (!set) unsupportedQualitys.set(musicId, set = new Set())
   set.add(quality)
 }
 
@@ -253,8 +259,8 @@ const isMasterQuality = (quality: LX.Quality) => quality == 'master' || quality 
  *
  * - 设置为 128K / 192K / 320K 时，始终按歌曲实际拥有的音质获取，不做 Master 映射
  * - 设置为 Atmos / Master 时，SQ 及以上的歌曲一律先按 Master 获取（乐观请求，失败再逐级降级）
- * - 只有 HQ / 128K 的歌曲没有无损可映射，按实际音质获取
- * - 设置为 Flac / Flac24bit 时，按所选音质获取
+ * - 设置为 Atmos / Master，但歌曲只有 HQ / 192K / 128K 时，没有无损可映射，按实际音质获取
+ * - 设置为 Flac / Flac24bit 时，按所选音质获取（不会顺带升到 Master）
  */
 export const getTryQualitys = (highQuality: LX.Quality, musicInfo: LX.Music.MusicInfoOnline): LX.Quality[] => {
   const qualitys = musicInfo.meta._qualitys
@@ -266,14 +272,16 @@ export const getTryQualitys = (highQuality: LX.Quality, musicInfo: LX.Music.Musi
     return list.length ? list : ['128k']
   }
 
-  // SQ 及以上的歌曲一律按 Master 获取，HQ / 192K / 128K 的歌没有无损可映射，只能按实际音质
-  // isLosslessOrAbove 只认真实的 flac/flac24bit/ape/wav，因此被写入脏 master/atmos 的有损歌曲不会误走 Master
-  const useMaster = isLosslessOrAbove(qualitys)
+  // 只有设置为 Atmos / Master 时，SQ 及以上的歌曲才按 Master 获取；
+  // HQ / 192K / 128K 的歌没有无损可映射，只能按实际音质。
+  // isLosslessOrAbove 只认真实的 flac/flac24bit/ape/wav，因此被写入脏 master/atmos 的有损歌曲不会误走 Master。
+  // 这里必须同时看设置：选了 Flac / Flac24bit 时按所选音质获取，不能顺带升到 Master
+  const useMaster = (highQuality == 'master' || highQuality == 'atmos') && isLosslessOrAbove(qualitys)
   const startQuality: LX.Quality = useMaster ? 'master' : highQuality
 
   const list = QUALITYS.slice(QUALITYS.indexOf(startQuality)).filter(q => {
     // master / atmos 源可能未声明但实际支持，先乐观尝试，失败后再降级
-    if (isMasterQuality(q)) return useMaster && !isQualityUnsupported(musicInfo.source, q)
+    if (isMasterQuality(q)) return useMaster && !isQualityUnsupported(musicInfo.id, q)
     return !!qualitys[q]
   })
   if (list.length) return list
@@ -301,7 +309,7 @@ const tryGetMusicUrl = (musicInfo: LX.Music.MusicInfoOnline, tryQualitys: LX.Qua
     }).catch((err: any) => {
       if (err.message == requestMsg.tooManyRequests) throw err
       console.log(`[quality] ${musicInfo.source} ${targetQuality} 获取失败，降级重试`, err.message)
-      if (isMasterQuality(targetQuality)) markQualityUnsupported(musicInfo.source, targetQuality)
+      if (isMasterQuality(targetQuality)) markQualityUnsupported(musicInfo.id, targetQuality)
       return tryNext(index + 1)
     })
   }
