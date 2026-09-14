@@ -1,3 +1,4 @@
+import { fixNewMusicInfoQuality } from '@common/utils/tools'
 import { toRaw } from '@common/utils/vueTools'
 import { rendererInvoke, rendererOff, rendererOn } from '@common/rendererIpc'
 import { PLAYER_EVENT_NAME } from '@common/ipcNames'
@@ -70,7 +71,9 @@ export const getListMusics = async(listId: string | null): Promise<LX.Music.Musi
   if (!listId) return []
   if (allMusicList.has(listId)) return allMusicList.get(listId)!
   const list = await rendererInvoke<string, LX.Music.MusicInfo[]>(PLAYER_EVENT_NAME.list_music_get, listId)
-  return setMusicList(listId, list)
+  // 库里存的可能是还没补齐 master / atmos 的老数据，读出来时补一次，
+  // 保证列表小标、播放、下载三处对音质的判断口径一致
+  return setMusicList(listId, list.map(m => fixNewMusicInfoQuality(m)))
 }
 
 /**
