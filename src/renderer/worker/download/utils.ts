@@ -2,7 +2,7 @@ import { DOWNLOAD_STATUS, QUALITYS } from '@common/constants'
 import { filterFileName } from '@common/utils/common'
 import { buildLyrics } from './lrcTool'
 import fs from 'fs'
-import { clipFileNameLength, clipNameLength, formatMusicName } from '@common/utils/tools'
+import { clipFileNameLength, clipNameLength, formatMusicName, isMasterQuality } from '@common/utils/tools'
 
 /**
  * 保存歌词文件
@@ -59,7 +59,10 @@ export const getExt = (type: string): LX.Download.FileExt => {
 export const getMusicType = (musicInfo: LX.Music.MusicInfoOnline, type: LX.Quality, qualityList: LX.QualityList): LX.Quality => {
   let list = qualityList[musicInfo.source]
   if (!list) return '128k'
-  if (!list.includes(type)) type = list[list.length - 1]
+  // master / atmos 是补齐出来的映射音质，接口声明里没有它们也很正常，
+  // 这里不能按声明列表降级，否则「下载 Master」会被静默改成 flac24bit，
+  // 取 URL 时失败会自动逐级降级
+  if (!isMasterQuality(type) && !list.includes(type)) type = list[list.length - 1]
   const rangeType = QUALITYS.slice(QUALITYS.indexOf(type))
   for (const type of rangeType) {
     if (musicInfo.meta._qualitys[type]) return type
