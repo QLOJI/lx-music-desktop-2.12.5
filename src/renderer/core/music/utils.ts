@@ -1,6 +1,6 @@
 import { assertApiSupport } from '@renderer/store/utils'
 import musicSdk from '@renderer/utils/musicSdk'
-import { QUALITYS, MASTER_QUALITY_SOURCES } from '@common/constants'
+import { QUALITYS } from '@common/constants'
 import { isLosslessOrAbove } from '@common/utils/tools'
 import {
   // getOtherSource as getOtherSourceFromStore,
@@ -252,9 +252,9 @@ const isMasterQuality = (quality: LX.Quality) => quality == 'master' || quality 
  * 计算实际要尝试获取的音质列表（按音质从高到低），获取失败时依次降级
  *
  * - 设置为 128K / 192K / 320K 时，始终按歌曲实际拥有的音质获取，不做 Master 映射
- * - 设置为 Atmos / Master 时，TX/KG/WY 的 SQ 及以上按 Master 获取
+ * - 设置为 Atmos / Master 时，SQ 及以上的歌曲一律先按 Master 获取（乐观请求，失败再逐级降级）
+ * - 只有 HQ / 128K 的歌曲没有无损可映射，按实际音质获取
  * - 设置为 Flac / Flac24bit 时，按所选音质获取
- * - 其余情况（如源不支持所选音质）按歌曲实际拥有的最高音质降级
  */
 export const getTryQualitys = (highQuality: LX.Quality, musicInfo: LX.Music.MusicInfoOnline): LX.Quality[] => {
   const qualitys = musicInfo.meta._qualitys
@@ -266,19 +266,20 @@ export const getTryQualitys = (highQuality: LX.Quality, musicInfo: LX.Music.Musi
     return list.length ? list : ['128k']
   }
 
-  // SQ 及以上且为 TX/KG/WY 时按 Master 获取
-  const useMaster = MASTER_QUALITY_SOURCES.includes(musicInfo.source) && isLosslessOrAbove(qualitys)
-  const startQuality: LX.Quality = isMasterQuality(highQuality)
-    ? (useMaster ? 'master' : 'flac24bit')
-    : highQuality
+  // SQ 及以上的歌曲一律按 Master 获取，HQ / 128K 的歌没有无损可映射，只能按实际音质
+  const useMaster = isLosslessOrAbove(qualitys)
+  const startQuality: LX.Quality = useMaster ? 'master' : highQuality
 
   const list = QUALITYS.slice(QUALITYS.indexOf(startQuality)).filter(q => {
     // master / atmos 源可能未声明但实际支持，先乐观尝试，失败后再降级
     if (isMasterQuality(q)) return useMaster && !isQualityUnsupported(musicInfo.source, q)
     return !!qualitys[q]
   })
+  if (list.length) return list
 
-  return list.length ? list : ['128k']
+  // 所选音质高于歌曲实际拥有的音质（例如选了 Master 但只有 HQ），退回歌曲实际的最高音质
+  const actualQualitys = QUALITYS.filter(q => qualitys[q])
+  return actualQualitys.length ? actualQualitys : ['128k']
 }
 
 /**
