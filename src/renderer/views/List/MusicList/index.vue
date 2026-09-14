@@ -44,6 +44,7 @@
           <div class="list-item-cell auto name" :aria-label="item.name">
             <span class="select name">{{ item.name }}</span>
             <span v-if="isShowSource" class="no-select label-source">{{ item.source }}</span>
+            <span v-if="getBadge(item)" class="no-select badge" :class="getBadge(item).class">{{ getBadge(item).text }}</span>
           </div>
           <div class="list-item-cell" style="flex: 0 0 22%;"><span class="select" :aria-label="item.singer">{{ item.singer }}</span></div>
           <div class="list-item-cell" style="flex: 0 0 22%;"><span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span></div>
@@ -76,6 +77,7 @@
           <div class="list-item-cell auto name">
             <span class="select name" :aria-label="item.name">{{ item.name }}</span>
             <span v-if="isShowSource" class="no-select label-source">{{ item.source }}</span>
+            <span v-if="getBadge(item)" class="no-select badge" :class="getBadge(item).class">{{ getBadge(item).text }}</span>
           </div>
           <div class="list-item-cell" style="flex: 0 0 25%;"><span class="select" :aria-label="item.singer">{{ item.singer }}</span></div>
           <div class="list-item-cell" style="flex: 0 0 28%;"><span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span></div>
@@ -105,6 +107,8 @@
 
 <script>
 import { clipboardWriteText } from '@common/utils/electron'
+import { getQualityBadge, getQualityBadgeText } from '@common/utils/tools'
+import { useI18n } from '@renderer/plugins/i18n'
 import { assertApiSupport } from '@renderer/store/utils'
 import SearchList from './components/SearchList.vue'
 import MusicSortModal from './components/MusicSortModal.vue'
@@ -136,6 +140,13 @@ export default {
   },
   emits: ['show-menu'],
   setup(props, { emit }) {
+    const t = useI18n()
+    // 列表音质小标，TX/KG/WY 的 SQ 及以上显示为 Master
+    const getBadge = (item) => {
+      const badge = getQualityBadge(item)
+      return badge ? { text: getQualityBadgeText(badge, t), class: `badge-theme-${badge.level}` } : null
+    }
+
     const actionButtonsVisible = appSetting['list.actionButtonsVisible']
 
     let scrollIndex = null
@@ -301,6 +312,7 @@ export default {
     }
 
     return {
+      getBadge,
       listItemHeight,
       handleListItemClick,
       selectedList,
