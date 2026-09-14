@@ -1,5 +1,97 @@
 // 业务工具方法
 
+import { MASTER_QUALITY_SOURCES } from '@common/constants'
+
+export type QualityBadgeKey =
+  | 'tag__master'
+  | 'tag__atmos'
+  | 'tag__lossless_24bit'
+  | 'tag__lossless'
+  | 'tag__high_quality'
+  | 'tag__quality_192k'
+  | 'tag__quality_128k'
+
+/**
+ * 列表音质小标，key 为小标的 i18n key，level 为配色等级
+ */
+export interface QualityBadge {
+  key: QualityBadgeKey
+  level: 'primary' | 'secondary' | 'tertiary'
+}
+
+// 各音质层级对应的小标文案与配色
+const QUALITY_BADGES: Record<string, QualityBadge> = {
+  master: { key: 'tag__master', level: 'primary' },
+  atmos: { key: 'tag__atmos', level: 'primary' },
+  flac24bit: { key: 'tag__lossless_24bit', level: 'primary' },
+  flac: { key: 'tag__lossless', level: 'primary' },
+  '320k': { key: 'tag__high_quality', level: 'secondary' },
+  '192k': { key: 'tag__quality_192k', level: 'secondary' },
+  '128k': { key: 'tag__quality_128k', level: 'tertiary' },
+}
+
+/**
+ * 该歌曲是否属于 SQ（无损）及以上音质
+ */
+export const isLosslessOrAbove = (qualitys: LX.Music._MusicQualityType): boolean => {
+  return !!(qualitys.master || qualitys.atmos || qualitys.flac24bit || qualitys.flac || qualitys.ape || qualitys.wav)
+}
+
+/**
+ * 获取列表显示的单个音质小标
+ * TX/KG/WY 的 SQ 及以上（flac/flac24bit）按需求统一显示为 Master
+ * @param musicInfo
+ */
+export const getQualityBadge = (musicInfo: LX.Music.MusicInfo): QualityBadge | null => {
+  if (!musicInfo || musicInfo.source == 'local') return null
+  const qualitys = (musicInfo.meta as LX.Music.MusicInfoMeta_online)?._qualitys
+  if (!qualitys) return null
+
+  let quality: string | null = null
+  // 必须先判 SQ：补齐音质时给 TX/KG/WY 的 SQ 及以上写了 master/atmos 别名，
+  // 若先判 atmos 会导致这些歌曲的小标全部显示成 Atmos
+  if (MASTER_QUALITY_SOURCES.includes(musicInfo.source) && (qualitys.flac24bit || qualitys.flac)) quality = 'master'
+  else if (qualitys.atmos) quality = 'atmos'
+  else if (qualitys.master) quality = 'master'
+  else if (qualitys.flac24bit) quality = 'flac24bit'
+  else if (qualitys.flac || qualitys.ape || qualitys.wav) quality = 'flac'
+  else if (qualitys['320k']) quality = '320k'
+  else if (qualitys['192k']) quality = '192k'
+  else if (qualitys['128k']) quality = '128k'
+  if (!quality) return null
+
+  return QUALITY_BADGES[quality]
+}
+
+/**
+ * 补齐音乐信息缺失的音质层级
+ * TX/KG/WY 的 SQ 及以上补齐 master/atmos（沿用其无损码流信息），
+ * 使这两个音质可以被选中、请求，并让小标覆盖完整音质层级
+ * @param musicInfo
+ */
+export const fillMusicQualitys = (musicInfo: LX.Music.MusicInfo): LX.Music.MusicInfo => {
+  if (!musicInfo || musicInfo.source == 'local') return musicInfo
+  const meta = musicInfo.meta as LX.Music.MusicInfoMeta_online
+  const qualitys = meta?._qualitys
+  if (!qualitys || !Array.isArray(meta.qualitys)) return musicInfo
+
+  if (MASTER_QUALITY_SOURCES.includes(musicInfo.source)) {
+    const base = qualitys.flac24bit ?? qualitys.flac
+    if (base) {
+      if (!qualitys.master) {
+        qualitys.master = { ...base }
+        meta.qualitys.push({ type: 'master', size: base.size })
+      }
+      if (!qualitys.atmos) {
+        qualitys.atmos = { ...base }
+        meta.qualitys.push({ type: 'atmos', size: base.size })
+      }
+    }
+  }
+
+  return musicInfo
+}
+
 export const toNewMusicInfo = (oldMusicInfo: any): LX.Music.MusicInfo => {
   const meta: Record<string, any> = {
     songId: oldMusicInfo.songmid, // 歌曲ID，local为文件路径
@@ -52,7 +144,7 @@ export const toNewMusicInfo = (oldMusicInfo: any): LX.Music.MusicInfo => {
     }
   }
 
-  return newInfo
+  return fillMusicQualitys(newInfo as LX.Music.MusicInfo)
 }
 
 export const toOldMusicInfo = (minfo: LX.Music.MusicInfo) => {
@@ -120,7 +212,7 @@ export const fixNewMusicInfoQuality = (musicInfo: LX.Music.MusicInfo) => {
     })
   }
 
-  return musicInfo
+  return fillMusicQualitys(musicInfo)
 }
 
 export const filterMusicList = <T extends LX.Music.MusicInfo>(list: T[]): T[] => {
