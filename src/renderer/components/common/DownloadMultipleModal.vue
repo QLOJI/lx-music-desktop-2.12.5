@@ -2,10 +2,12 @@
   <material-modal :show="show" :bg-close="bgClose" :teleport="teleport" @close="handleClose">
     <main :class="$style.main">
       <h2>{{ $t('download__multiple_tip', { len: list.length }) }}<br>{{ $t('download__multiple_tip2') }}</h2>
-      <base-btn :class="$style.btn" @click="handleClick('128k')">{{ $t('download__normal') }} - 128K</base-btn>
-      <base-btn :class="$style.btn" @click="handleClick('320k')">{{ $t('download__high_quality') }} - 320K</base-btn>
-      <base-btn :class="$style.btn" @click="handleClick('flac')">{{ $t('download__lossless') }} - FLAC</base-btn>
+      <base-btn :class="$style.btn" @click="handleClick('master')">{{ $t('download__lossless') }} - MASTER</base-btn>
+      <base-btn :class="$style.btn" @click="handleClick('atmos')">{{ $t('download__lossless') }} - ATMOS</base-btn>
       <base-btn :class="$style.btn" @click="handleClick('flac24bit')">{{ $t('download__lossless') }} - FLAC Hires</base-btn>
+      <base-btn :class="$style.btn" @click="handleClick('flac')">{{ $t('download__lossless') }} - FLAC</base-btn>
+      <base-btn :class="$style.btn" @click="handleClick('320k')">{{ $t('download__high_quality') }} - 320K</base-btn>
+      <base-btn :class="$style.btn" @click="handleClick('128k')">{{ $t('download__normal') }} - 128K</base-btn>
     </main>
   </material-modal>
 </template>

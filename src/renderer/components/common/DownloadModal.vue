@@ -3,13 +3,15 @@
     <main :class="$style.main">
       <h2>{{ info.name }}<br>{{ info.singer }}</h2>
       <base-btn v-for="quality in qualitys" :key="quality.type" :class="$style.btn" @click="handleClick(quality.type)">
-        {{ getTypeName(quality.type) }}{{ quality.size && ` - ${quality.size.toUpperCase()}` }}
+        {{ getBtnText(quality) }}
       </base-btn>
     </main>
   </material-modal>
 </template>
 
 <script>
+import { QUALITYS } from '@common/constants'
+import { isMasterQuality } from '@common/utils/tools'
 import { qualityList } from '@renderer/store'
 import { createDownloadTasks } from '@renderer/store/download/action'
 
@@ -50,13 +52,22 @@ export default {
       return this.qualityList[this.musicInfo.source] || []
     },
     qualitys() {
-      return this.info.meta?.qualitys?.filter(quality => this.checkSource(quality.type)) || []
+      return (this.info.meta?.qualitys || [])
+        .filter(quality => this.checkSource(quality.type))
+        // 按音质从高到低排列，保证 Master 排在 Atmos 上面
+        .sort((a, b) => QUALITYS.indexOf(a.type) - QUALITYS.indexOf(b.type))
     },
   },
   methods: {
     handleClick(quality) {
       void createDownloadTasks([this.musicInfo], quality, this.listId)
       this.handleClose()
+    },
+    getBtnText(quality) {
+      const name = this.getTypeName(quality.type)
+      // master / atmos 是补出来的映射音质，没有真实文件大小可显示
+      if (isMasterQuality(quality.type) || !quality.size) return name
+      return `${name} - ${quality.size.toUpperCase()}`
     },
     handleClose() {
       this.$emit('update:show', false)
@@ -80,6 +91,9 @@ export default {
       }
     },
     checkSource(quality) {
+      // Master / Atmos 是给 SQ 及以上歌曲补出来的，接口声明里通常没有，
+      // 一律放行让用户可以选，取 URL 失败时会自动逐级降级
+      if (isMasterQuality(quality)) return true
       return this.sourceQualityList.includes(quality)
     },
   },
