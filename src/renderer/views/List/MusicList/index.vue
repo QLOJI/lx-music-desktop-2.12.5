@@ -390,8 +390,9 @@ export default {
   :global {
     .label-source {
       color: var(--color-primary);
-      // 只留上下留白，左右由小标自己的 margin-left 撑开，
-      // 否则源标识和小标之间会空出一大截
+      // 与歌名之间留一个空格的距离；与音质小标之间不额外留白，
+      // 那段间距由小标自己的 margin-left 撑开，否则会空出一大截
+      margin-left: 8px;
       padding: 5px 0;
       font-size: .8em;
       line-height: 1.2;
