@@ -31,34 +31,43 @@ const QUALITY_BADGES: Record<string, QualityBadge> = {
 }
 
 /**
- * 该歌曲是否属于 SQ（无损）及以上音质
+ * 该歌曲是否有真正的 SQ（无损）及以上音质
+ *
+ * 只认 flac / flac24bit / ape / wav。master / atmos 不算数——
+ * 这两个音质可能来自补齐别名或来源接口的脏数据，本身不能证明歌曲是无损，
+ * 否则 HQ / 192K / 128K 的歌会被顶成 Master。
  */
 export const isLosslessOrAbove = (qualitys: LX.Music._MusicQualityType): boolean => {
-  return !!(qualitys.master || qualitys.atmos || qualitys.flac24bit || qualitys.flac || qualitys.ape || qualitys.wav)
+  return !!(qualitys.flac24bit || qualitys.flac || qualitys.ape || qualitys.wav)
 }
 
 /**
  * 获取列表显示的单个音质小标
- * TX/KG/WY 的 SQ 及以上（flac/flac24bit）按需求统一显示为 Master
+ * TX/KG/WY 的 SQ 及以上按需求统一显示为 Master，其余按实际音质显示；
+ * 完全没有音质信息的歌曲补 128K
  * @param musicInfo
  */
 export const getQualityBadge = (musicInfo: LX.Music.MusicInfo): QualityBadge | null => {
   if (!musicInfo || musicInfo.source == 'local') return null
   const qualitys = (musicInfo.meta as LX.Music.MusicInfoMeta_online)?._qualitys
-  if (!qualitys) return null
+  // 拿不到任何音质信息，按惯例补 128K
+  if (!qualitys) return QUALITY_BADGES['128k']
 
-  let quality: string | null = null
+  // 只有真的有无损，master / atmos 小标才作数
+  const hasLossless = isLosslessOrAbove(qualitys)
+
+  let quality: string
   // 必须先判 SQ：补齐音质时给 TX/KG/WY 的 SQ 及以上写了 master/atmos 别名，
   // 若先判 atmos 会导致这些歌曲的小标全部显示成 Atmos
-  if (MASTER_QUALITY_SOURCES.includes(musicInfo.source) && (qualitys.flac24bit || qualitys.flac)) quality = 'master'
-  else if (qualitys.atmos) quality = 'atmos'
-  else if (qualitys.master) quality = 'master'
+  if (MASTER_QUALITY_SOURCES.includes(musicInfo.source) && hasLossless) quality = 'master'
+  else if (hasLossless && qualitys.atmos) quality = 'atmos'
+  else if (hasLossless && qualitys.master) quality = 'master'
   else if (qualitys.flac24bit) quality = 'flac24bit'
   else if (qualitys.flac || qualitys.ape || qualitys.wav) quality = 'flac'
   else if (qualitys['320k']) quality = '320k'
   else if (qualitys['192k']) quality = '192k'
-  else if (qualitys['128k']) quality = '128k'
-  if (!quality) return null
+  // 只有 128K，或者一个都没认出来，一律按 128K 显示
+  else quality = '128k'
 
   return QUALITY_BADGES[quality]
 }
@@ -76,7 +85,8 @@ export const fillMusicQualitys = (musicInfo: LX.Music.MusicInfo): LX.Music.Music
   if (!qualitys || !Array.isArray(meta.qualitys)) return musicInfo
 
   if (MASTER_QUALITY_SOURCES.includes(musicInfo.source)) {
-    const base = qualitys.flac24bit ?? qualitys.flac
+    // 只有真的有 SQ 及以上的码流信息时才补别名，避免给 HQ / 192K / 128K 的歌凭空补出 master
+    const base = qualitys.flac24bit ?? qualitys.flac ?? qualitys.ape ?? qualitys.wav
     if (base) {
       if (!qualitys.master) {
         qualitys.master = { ...base }
