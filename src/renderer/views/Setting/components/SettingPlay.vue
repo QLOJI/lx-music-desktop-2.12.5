@@ -37,8 +37,8 @@ dd
   h3#basic_play_quality {{ $t('setting__play_playQuality') }}
   div
     base-checkbox.gap-left(
-      v-for="item in playQualityList" :id="`setting_play_quality_${item}`" :key="item"
-      name="setting_play_quality" need :model-value="appSetting['player.playQuality']" :value="item" :label="item"
+      v-for="item in playQualityList" :id="`setting_play_quality_${item.value}`" :key="item.value"
+      name="setting_play_quality" need :model-value="appSetting['player.playQuality']" :value="item.value" :label="item.label"
       @update:model-value="updateSetting({'player.playQuality': $event})")
 
 dd(:aria-label="$t('setting__play_mediaDevice_title')")
@@ -55,7 +55,7 @@ import { useI18n } from '@renderer/plugins/i18n'
 import { appSetting, saveMediaDeviceId, updateSetting } from '@renderer/store/setting'
 import { setPowerSaveBlocker } from '@renderer/core/player/utils'
 import { isPlay } from '@renderer/store/player/state'
-import { TRY_QUALITYS_LIST } from '@renderer/core/music/utils'
+import { PLAY_QUALITYS } from '@renderer/core/music/utils'
 import { isMac } from '@common/utils'
 
 
@@ -63,7 +63,7 @@ export default {
   name: 'SettingPlay',
   setup() {
     const t = useI18n()
-    const playQualityList = [...TRY_QUALITYS_LIST, '128k'].reverse()
+    const playQualityList = PLAY_QUALITYS
 
     const mediaDevices = ref([])
     const getMediaDevice = async() => {
