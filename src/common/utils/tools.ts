@@ -59,6 +59,15 @@ export const isLosslessOrAbove = (qualitys: LX.Music._MusicQualityType): boolean
 }
 
 /**
+ * 是否是「高于 SQ」的映射音质
+ *
+ * master / atmos 大多是补齐出来的：来源接口本身不返回这两个音质，
+ * 需要按 SQ 的码流去请求。因此接口声明里没有它们也很正常，
+ * 取 URL / 下载时都允许乐观尝试，失败了再逐级降级
+ */
+export const isMasterQuality = (quality: LX.Quality): boolean => quality == 'master' || quality == 'atmos'
+
+/**
  * 获取列表显示的单个音质小标
  * TX/KG/WY 的 SQ 及以上按需求统一显示为 Master，其余按实际音质显示；
  * 完全没有音质信息的歌曲补 128K
@@ -225,18 +234,27 @@ export const toOldMusicInfo = (minfo: LX.Music.MusicInfo) => {
 export const fixNewMusicInfoQuality = (musicInfo: LX.Music.MusicInfo) => {
   if (musicInfo.source == 'local') return musicInfo
 
-  // @ts-expect-error
-  if (musicInfo.meta._qualitys.flac32bit && !musicInfo.meta._qualitys.flac24bit) {
-    // @ts-expect-error
-    musicInfo.meta._qualitys.flac24bit = musicInfo.meta._qualitys.flac32bit
-    // @ts-expect-error
-    delete musicInfo.meta._qualitys.flac32bit
+  // 老数据里 flac32bit 是已废弃的字段（2.0.0-dev.8 之后改用 flac24bit），
+  // 这里把 meta 的类型放宽，免得为了访问它到处写 @ts-expect-error
+  const meta = musicInfo.meta as LX.Music.MusicInfoMeta_online & {
+    _qualitys: LX.Music._MusicQualityType & { flac32bit?: { size: string | null } }
+  }
+  const _qualitys = meta._qualitys
 
-    musicInfo.meta.qualitys = musicInfo.meta.qualitys.map(quality => {
-      // @ts-expect-error
-      if (quality.type == 'flac32bit') quality.type = 'flac24bit'
-      return quality
-    })
+  // 列表是从数据库读出来的，数据不完整就原样返回，避免下面取属性时炸掉
+  if (!_qualitys) return musicInfo
+
+  if (_qualitys.flac32bit && !_qualitys.flac24bit) {
+    _qualitys.flac24bit = _qualitys.flac32bit
+    delete _qualitys.flac32bit
+
+    // 顺带把 qualitys 里还写着的 flac32bit 改成 flac24bit
+    if (Array.isArray(meta.qualitys)) {
+      meta.qualitys.forEach(quality => {
+        const legacy = quality as { type: string }
+        if (legacy.type == 'flac32bit') legacy.type = 'flac24bit'
+      })
+    }
   }
 
   return fillMusicQualitys(musicInfo)
