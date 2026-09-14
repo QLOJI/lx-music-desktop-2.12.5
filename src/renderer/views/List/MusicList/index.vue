@@ -390,7 +390,9 @@ export default {
   :global {
     .label-source {
       color: var(--color-primary);
-      padding: 5px;
+      // 只留上下留白，左右由小标自己的 margin-left 撑开，
+      // 否则源标识和小标之间会空出一大截
+      padding: 5px 0;
       font-size: .8em;
       line-height: 1.2;
       opacity: .75;
