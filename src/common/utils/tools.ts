@@ -12,22 +12,39 @@ export type QualityBadgeKey =
   | 'tag__quality_128k'
 
 /**
- * 列表音质小标，key 为小标的 i18n key，level 为配色等级
+ * 列表音质小标
+ *
+ * key 为小标的 i18n key，text 为兜底文案：
+ * i18n 找不到这条文案时会把 key 原样返回（详见 lang/i18n.ts 的 getMessage），
+ * 那样小标就会显示成 tag__master 这种原始 key。这里给一个字面量兜底，
+ * 保证任何语言包下都显示 Master / Atmos / SQ 这类正常文案
  */
 export interface QualityBadge {
   key: QualityBadgeKey
+  text: string
   level: 'primary' | 'secondary' | 'tertiary'
 }
 
 // 各音质层级对应的小标文案与配色
 const QUALITY_BADGES: Record<string, QualityBadge> = {
-  master: { key: 'tag__master', level: 'primary' },
-  atmos: { key: 'tag__atmos', level: 'primary' },
-  flac24bit: { key: 'tag__lossless_24bit', level: 'primary' },
-  flac: { key: 'tag__lossless', level: 'primary' },
-  '320k': { key: 'tag__high_quality', level: 'secondary' },
-  '192k': { key: 'tag__quality_192k', level: 'secondary' },
-  '128k': { key: 'tag__quality_128k', level: 'tertiary' },
+  master: { key: 'tag__master', text: 'Master', level: 'primary' },
+  atmos: { key: 'tag__atmos', text: 'Atmos', level: 'primary' },
+  flac24bit: { key: 'tag__lossless_24bit', text: '24bit', level: 'primary' },
+  flac: { key: 'tag__lossless', text: 'SQ', level: 'primary' },
+  '320k': { key: 'tag__high_quality', text: 'HQ', level: 'secondary' },
+  '192k': { key: 'tag__quality_192k', text: '192K', level: 'secondary' },
+  '128k': { key: 'tag__quality_128k', text: '128K', level: 'tertiary' },
+}
+
+/**
+ * 取小标最终显示的文案，语言包缺这条文案时退回字面量
+ * @param badge
+ * @param t i18n 的翻译函数
+ */
+export const getQualityBadgeText = (badge: QualityBadge, t: (key: any) => string): string => {
+  const text = t(badge.key)
+  // getMessage 找不到文案时会原样返回 key，说明当前语言包是旧的
+  return text === badge.key ? badge.text : text
 }
 
 /**
