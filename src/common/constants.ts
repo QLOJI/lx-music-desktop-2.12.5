@@ -79,6 +79,10 @@ export const DOWNLOAD_STATUS = {
   COMPLETED: 'completed',
 } as const
 
-export const QUALITYS = ['flac24bit', 'flac', 'wav', 'ape', '320k', '192k', '128k'] as const
+// 全部音质标识，按音质从高到低排列（音质降级、下载音质选择都依赖这个顺序）
+export const QUALITYS = ['master', 'atmos', 'flac24bit', 'flac', 'wav', 'ape', '320k', '192k', '128k'] as const
+
+// 支持「SQ 及以上按 Master 处理」的源
+export const MASTER_QUALITY_SOURCES: LX.Source[] = ['tx', 'kg', 'wy']
 
 export const TRAY_AUTO_ID = -1
